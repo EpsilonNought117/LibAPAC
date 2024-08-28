@@ -4,7 +4,7 @@ libapac_err apz_init(apz_t* result, size_t init_size)
 {
 	assert(result && init_size && ((init_size >> 3) < ULLONG_MAX));
 
-	apz64 alloc_size = (((apz64)8 * init_size) >> 2) << 2;
+	apz64 alloc_size = (apz64)init_size * 8;
 
 	result->num_array = malloc_ptr(alloc_size);
 
@@ -27,7 +27,7 @@ libapac_err apz_init_u64(apz_t* result, size_t init_size, uint64_t init_value)
 {
 	assert(result && init_size && ((init_size >> 3) < ULLONG_MAX));
 
-	apz64 alloc_size = (((apz64)8 * init_size) >> 2) << 2;
+	apz64 alloc_size = (apz64)init_size * 8;
 
 	result->num_array = malloc_ptr(alloc_size);
 
@@ -52,7 +52,7 @@ libapac_err apz_init_i64(apz_t* result, size_t init_size, int64_t init_value)
 {
 	assert(result && init_size && ((init_size >> 3) < ULLONG_MAX));
 
-	apz64 alloc_size = (((apz64)8 * init_size) >> 2) << 2;
+	apz64 alloc_size = (apz64)init_size * 8;
 
 	result->num_array = malloc_ptr(alloc_size);
 
@@ -77,8 +77,6 @@ libapac_err apz_init_i64(apz_t* result, size_t init_size, int64_t init_value)
 libapac_err apz_grow(apz_t* result, size_t new_size)
 {
 	assert(result && (new_size > result->seg_alloc) && ((new_size >> 3) < ULLONG_MAX));
-	
-	new_size = (new_size >> 2) << 2;
 
 	apz64* temp_mem = realloc_ptr(result->num_array, new_size * sizeof(apz64));
 
@@ -103,19 +101,16 @@ libapac_err apz_shrink_fit(apz_t* result)
 {
 	assert(result && result->num_array);
 
-	apz64 reduced_size = (result->seg_in_use >> 2) << 2;
-
-	apz64* temp_mem = realloc_ptr(result->num_array, sizeof(apz64) * reduced_size);
+	apz64* temp_mem = realloc_ptr(result->num_array, sizeof(apz64) * result->seg_in_use);
 
 	if (!temp_mem)
 	{
-		fprintf(stderr, "Memory allocation failed in 'apz_grow'!");
+		fprintf(stderr, "Memory allocation failed in 'apz_shrink_fit'!");
 		return LIBAPAC_OOM;
 	}
 
 	result->num_array = temp_mem;
-	result->seg_alloc = reduced_size;
-	result->seg_in_use = reduced_size;
+	result->seg_alloc = result->seg_in_use;
 	temp_mem = NULL;
 
 	return LIBAPAC_OKAY;
