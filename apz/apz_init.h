@@ -3,8 +3,6 @@
 
 #include "_apz_def.h"
 
-// functions below allocate space depending on init_size (init_size != 0)
-
 libapac_err apz_init(apz_t* result, size_t init_size_limbs);
 
 libapac_err apz_init_u64(apz_t* result, size_t init_size_limbs, uint64_t value);  // for unsigned 64 bit int

@@ -4,7 +4,7 @@ libapac_err apz_init(apz_t* result, size_t init_size)
 {
 	assert(result && init_size && ((init_size >> 3) < ULLONG_MAX));
 
-	apz64 alloc_size = (apz64)init_size * 8;
+	apz64 alloc_size = (apz64)init_size << 3;
 
 	result->num_array = malloc_ptr(alloc_size);
 
@@ -27,7 +27,7 @@ libapac_err apz_init_u64(apz_t* result, size_t init_size, uint64_t init_value)
 {
 	assert(result && init_size && ((init_size >> 3) < ULLONG_MAX));
 
-	apz64 alloc_size = (apz64)init_size * 8;
+	apz64 alloc_size = (apz64)init_size << 3;
 
 	result->num_array = malloc_ptr(alloc_size);
 
@@ -52,7 +52,7 @@ libapac_err apz_init_i64(apz_t* result, size_t init_size, int64_t init_value)
 {
 	assert(result && init_size && ((init_size >> 3) < ULLONG_MAX));
 
-	apz64 alloc_size = (apz64)init_size * 8;
+	apz64 alloc_size = (apz64)init_size << 3;
 
 	result->num_array = malloc_ptr(alloc_size);
 
