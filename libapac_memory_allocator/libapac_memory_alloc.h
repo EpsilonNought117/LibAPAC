@@ -1,5 +1,5 @@
-#ifndef LIBAPAC_MALLOCATOR
-#define LIBAPAC_MALLOCATOR
+#ifndef LIBAPAC_MEMORY_ALLOCATOR
+#define LIBAPAC_MEMORY_ALLOCATOR
 
 #include <stdlib.h>
 #include <stdio.h>

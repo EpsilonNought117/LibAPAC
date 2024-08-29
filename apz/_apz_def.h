@@ -29,8 +29,8 @@
     LIBAPAC HEADERS
 */
 
-#include "../Libapac_memory_allocator/LibAPAC_memory_alloc.h"
-#include "../LIbAPAC_erros.h"
+#include "../libapac_memory_allocator/libapac_memory_alloc.h"
+#include "../libapac_erros.h"
 
 typedef uint64_t apz64;
 

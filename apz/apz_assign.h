@@ -1,7 +1,7 @@
 #ifndef APZ_ASSIGN
 #define APZ_ASSIGN
 
-#include "../apz_def.h"
+#include "_apz_def.h"
 
 libapac_err apz_copy(apz_t* result, apz_t* op1);
 

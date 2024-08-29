@@ -1,4 +1,4 @@
-#include "LibAPAC_memory_alloc.h"
+#include "libapac_memory_alloc.h"
 
 void stdlib_free_wrapper(void* memory, size_t free_size)
 {

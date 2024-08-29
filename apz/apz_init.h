@@ -1,7 +1,7 @@
 #ifndef APZ_INIT
 #define APZ_INIT
 
-#include "../apz_def.h"
+#include "_apz_def.h"
 
 // functions below allocate space depending on init_size (init_size != 0)
 
