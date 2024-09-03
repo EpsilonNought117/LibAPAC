@@ -22,4 +22,7 @@
 *	APZ HEADER FILES FOR x86_64
 */
 
+#include "apz/_x64_/apz_add_sub_x64.h"
+#include "apz/_x64_/apz_mul_x64.h"
+
 #endif
