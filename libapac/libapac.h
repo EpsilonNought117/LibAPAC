@@ -244,7 +244,7 @@ libapac_err apz_init_ui64(apz_t *result, size_t init_size, uint64_t init_value)
 
     if (!result->num_array)
     {
-        fprintf(stderr, "Memory allocation failed in 'apz_init_u64'!");
+        REPORT_ERR(stderr, "Memory allocation failed in 'apz_init_u64'!");
         return LIBAPAC_OOM;
     }
 
@@ -268,7 +268,7 @@ libapac_err apz_init_si64(apz_t *result, size_t init_size, int64_t init_value)
 
     if (!result->num_array)
     {
-        fprintf(stderr, "Memory allocation failed in 'apz_init_i64'!");
+        REPORT_ERR(stderr, "Memory allocation failed in 'apz_init_i64'!");
         return LIBAPAC_OOM;
     }
 
@@ -292,7 +292,7 @@ libapac_err apz_grow(apz_t *result, size_t new_size)
 
     if (!temp_mem)
     {
-        fprintf(stderr, "Memory allocation failed in 'apz_grow'!");
+        REPORT_ERR(stderr, "Memory allocation failed in 'apz_grow'!");
         return LIBAPAC_OOM;
     }
 
@@ -315,7 +315,7 @@ libapac_err apz_shrink_fit(apz_t *result)
 
     if (!temp_mem)
     {
-        fprintf(stderr, "Memory allocation failed in 'apz_shrink_fit'!");
+        REPORT_ERR(stderr, "Memory allocation failed in 'apz_shrink_fit'!");
         return LIBAPAC_OOM;
     }
 
