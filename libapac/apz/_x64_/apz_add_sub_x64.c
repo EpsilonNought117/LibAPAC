@@ -82,7 +82,7 @@ void apz_abs_sub_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem
 
     while (counter < max_elem->seg_in_use)
     {
-        borrow = _subborrow_u64(borrow, temp_max[counter], 0, temp_res + counter);                 // possibly loop unroll
+        borrow = _subborrow_u64(borrow, temp_max[counter], 0, temp_res + counter);  // can try loop unrolling
         counter++;
     }
 
