@@ -16,7 +16,7 @@ void apz_abs_add_x64(apz_t *result, const apz_t *op1, const apz_t *op2);
  * @result result = abs(op1) - abs(op2)
  * 
  * @note result->is_negative set to APZ_ZPOS by default
- * @note caller has to make sure abs(op1) > abs(op2), otherwise asserted by function
+ * @note caller has to make sure abs(op1) > abs(op2), otherwise behaviour is undefined
  */
 void apz_abs_sub_x64(apz_t *result, const apz_t *op1, const apz_t *op2);
 
