@@ -251,7 +251,7 @@ libapac_err apz_init_pos64(apz_t *result, size_t init_size, uint64_t init_value)
 
     if (!result->num_array)
     {
-        REPORT_ERR(stderr, "Memory allocation failed in 'apz_init_u64'!");
+        REPORT_ERR(stderr, "Memory allocation failed in 'apz_init_pos64'!");
         return LIBAPAC_OOM;
     }
 
@@ -275,7 +275,7 @@ libapac_err apz_init_neg64(apz_t *result, size_t init_size, uint64_t init_value)
 
     if (!result->num_array)
     {
-        REPORT_ERR(stderr, "Memory allocation failed in 'apz_init_i64'!");
+        REPORT_ERR(stderr, "Memory allocation failed in 'apz_init_neg64'!");
         return LIBAPAC_OOM;
     }
 
