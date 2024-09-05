@@ -9,17 +9,22 @@
 #include <stdint.h>
 
 #ifndef REPORT_ERR_FPRINTF
-    #include <stdio.h>
-    #define REPORT_ERR(stream, fmt, ...) fprintf(stream, fmt, ## __VA_ARGS__)
+#include <stdio.h>
+#define REPORT_ERR(stream, fmt, ...) fprintf(stream, fmt, ##__VA_ARGS__)
+
+/*
+    can get rid of this dependency by redifining REPORT_ERR(stream, fmt, ...)
+*/
+
 #endif
 
 #ifndef ASSERT
-    #include <assert.h>
-    #define ASSERT(x) assert(x)
+#include <assert.h>
+#define ASSERT(x) assert(x)
 
-    /*
-        user can get rid of this dependency if needed by redefining ASSERT(x)
-    */
+/*
+    can get rid of this dependency if needed by redefining ASSERT(x)
+*/
 
 #endif
 
@@ -52,11 +57,10 @@ typedef enum LIBAPAC_ERRORS
 
 void *(*malloc_ptr)(size_t init_size);
 void *(*realloc_ptr)(void *old_buffer, size_t new_size);
-void (*free_ptr)(void *memory, size_t free_size);
+void (*free_ptr)(void *memory);
 
-void stdlib_free_wrapper(void *memory, size_t free_size);
-
-void set_memory_func_ptrs(void *(*func_ptr1)(size_t init_size), void *(*func_ptr2)(void *old_buffer, size_t new_size), void (*func_ptr3)(void *memory, size_t free_size));
+/// @note for setting memory allocation methods
+void set_memory_func_ptrs(void *(*func_ptr1)(size_t init_size), void *(*func_ptr2)(void *old_buffer, size_t new_size), void (*func_ptr3)(void *memory));
 
 /*
     ARBITRARY PRECISION INTEGER DEFINITION
@@ -143,6 +147,10 @@ apz64 inline apz_limit_mod_exp(apz_t *op1, apz_t *op2);
  *  APZ HIGH LEVEL BASIC ARITHMETIC FUNCTIONS
  */
 
+///@note returns the big integer with the greater absolute value among the two
+///@note returns 1 if abs(op1) >= abs(op2), else if abs(op1) <= abs(op2) returns 0
+uint8_t apz_abs_greater(const apz_t *op1, const apz_t *op2);
+
 /// @note result = op1 + op2
 /// @note result sign set according to values of op1 and op2
 libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2);
@@ -175,20 +183,20 @@ libapac_err apz_hl_mul_si(apz_t *result, const apz_t *op1, const int64_t value);
 
 /**
  * Does not perform any memory allocation on result
- * @result result = abs(op1) + abs(op2)
- * 
+ * @result result = abs(max_elem) + abs(min_elem)
+ *
  * @note result->is_negative set to APZ_ZPOS by default
- * @note caller has to make sure limb count is one more than maximum
+ * @note caller has to make sure limb count of result is at least one more than maximum
  */
-void apz_abs_add_x64(apz_t *result, const apz_t *op1, const apz_t *op2);
+void apz_abs_add_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem);
 
 /**
- * @result result = abs(op1) - abs(op2)
- * 
+ * @result result = abs(max_elem) - abs(max_elem)
+ *
  * @note result->is_negative set to APZ_ZPOS by default
- * @note caller has to make sure abs(op1) > abs(op2), otherwise behaviour is undefined
+ * @note caller has to make sure abs(max_elem) > abs(min_elem), otherwise behaviour is undefined
  */
-void apz_abs_sub_x64(apz_t *result, const apz_t *op1, const apz_t *op2);
+void apz_abs_sub_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem);
 
 #endif
 
@@ -200,21 +208,16 @@ void apz_abs_sub_x64(apz_t *result, const apz_t *op1, const apz_t *op2);
     LIBAPAC MEMORY ALLOCATION METHOD IMPLEMENTATION
 */
 
-void stdlib_free_wrapper(void *memory, size_t free_size)
-{
-    return free(memory);
-}
-
 void set_memory_func_ptrs(
     void *(*func_ptr1)(size_t init_size),
     void *(*func_ptr2)(void *old_buffer, size_t new_size),
-    void (*func_ptr3)(void *memory, size_t free_size))
+    void (*func_ptr3)(void *memory))
 {
     if (!func_ptr1 && !func_ptr2 && !func_ptr3)
     {
         malloc_ptr = &malloc;
         realloc_ptr = &realloc;
-        free_ptr = &stdlib_free_wrapper;
+        free_ptr = &free;
         return;
     }
     else if (func_ptr1 && func_ptr2 && func_ptr3)
@@ -279,7 +282,7 @@ libapac_err apz_init_si64(apz_t *result, size_t init_size, int64_t init_value)
 
     result->num_array[0] = abs_value;
     result->seg_in_use = 1;
-    result->is_negative = APZ_NEG;
+    result->is_negative = (init_value) >> 63;
 
     return LIBAPAC_OKAY;
 }
@@ -330,13 +333,106 @@ libapac_err apz_free(apz_t *result)
 {
     ASSERT(result && result->num_array);
 
-    free_ptr(result->num_array, result->seg_alloc * sizeof(apz64));
+    free_ptr(result->num_array);
 
     result->num_array = NULL;
 
-    free_ptr(result, sizeof(apz_t));
+    free_ptr(result);
 
     return LIBAPAC_OKAY;
+}
+
+/*
+    APZ HIGH LEVEL BASIC ARITHMETIC FUNCTION DEFINITIONS (PLATFORM INDEPENDENT)
+*/
+
+uint8_t apz_abs_greater(const apz_t *op1, const apz_t *op2)
+{
+    ASSERT(op1 && op2);
+    ASSERT(op1->num_array && op2->num_array);
+
+    if (op1->seg_in_use > op2->seg_in_use)
+    {
+        return 1;
+    }
+    else if (op2->seg_in_use > op1->seg_in_use)
+    {
+        return 0;
+    }
+    else
+    {
+        uint64_t counter = op1->seg_in_use - 1;
+
+        while (counter != 0)
+        {
+            if (op1->num_array[counter] > op2->num_array[counter])
+            {
+                return 1;
+            }
+            else if (op1->num_array[counter] < op2->num_array[counter])
+            {
+                return 0;
+            }
+            else
+            {
+                counter--;
+            }
+        }
+
+        return (op1->num_array[counter] > op2->num_array[counter] ? 1 : 0);
+    }
+}
+
+libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2)
+{
+    ASSERT(result && op1 && op2);
+    ASSERT(result->num_array && op1->num_array && op2->num_array);
+
+    const apz_t *max_elem, *min_elem;
+    uint8_t op_to_do = 0; // abs addition by default
+    libapac_err ret_val = LIBAPAC_OKAY;
+
+    if (apz_abs_greater(op1, op2))
+    {
+        max_elem = op1;
+        min_elem = op2;
+    }
+    else
+    {
+        max_elem = op2;
+        min_elem = op1;
+    }
+
+    if (max_elem->is_negative != min_elem->is_negative)
+    {
+        op_to_do = 1; // to do abs subtraction
+    }
+
+    if (!op_to_do && result->seg_alloc < (max_elem->seg_in_use + 1)) // if operation is addition
+    {
+        ret_val = apz_grow(result, max_elem->seg_in_use + 1);
+    }
+    else if (op_to_do && result->seg_alloc < max_elem->seg_in_use) // if operation is subtraction
+    {
+        ret_val = apz_grow(result, max_elem->seg_in_use);
+    }
+
+    if (ret_val == LIBAPAC_OOM) // check if out of memory error has happened and handle
+    {
+        return ret_val;
+    }
+
+    if (op_to_do) // do absolute addition
+    {
+        apz_abs_sub_x64(result, max_elem, min_elem);
+    }
+    else // do absolute subtraction
+    {
+        apz_abs_add_x64(result, max_elem, min_elem);
+    }
+
+    result->is_negative = max_elem->is_negative;
+    return ret_val;
 }
 
 /*
@@ -369,9 +465,6 @@ apz64 inline apz_limit_exp(apz_t *op1, apz_t *op2)
 
 void apz_abs_add_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem)
 {
-    ASSERT(result && max_elem && min_elem);
-    ASSERT(result->num_array && max_elem->num_array && min_elem->num_array);
-
     // assumption made by function
 
     ASSERT(max_elem->seg_in_use >= min_elem->seg_in_use);
@@ -423,9 +516,6 @@ void apz_abs_add_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem
 
 void apz_abs_sub_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem)
 {
-    ASSERT(result && max_elem && min_elem);
-    ASSERT(result->num_array && max_elem->num_array && min_elem->num_array);
-
     /*
         NO CHECKS ARE PERFORMED HERE WHETHER abs(max_elem) > abs(min_elem)
         NEEDS TO BE CHECKED BY CALLER OR USE HIGHER LEVEL FUNCTIONS
@@ -441,7 +531,7 @@ void apz_abs_sub_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem
 
     while (counter < min_elem->seg_in_use)
     {
-        borrow = _subborrow_u64(borrow, temp_max[counter], temp_min[counter], temp_res + counter);  // possibly loop unroll
+        borrow = _subborrow_u64(borrow, temp_max[counter], temp_min[counter], temp_res + counter); // possibly loop unroll
         counter++;
     }
 
@@ -449,7 +539,7 @@ void apz_abs_sub_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem
 
     while (counter < max_elem->seg_in_use)
     {
-        borrow = _subborrow_u64(borrow, temp_max[counter], 0, temp_res + counter);  // can try loop unrolling
+        borrow = _subborrow_u64(borrow, temp_max[counter], 0, temp_res + counter); // can try loop unrolling
         counter++;
     }
 
