@@ -108,12 +108,16 @@ typedef struct apz_t
 } apz_t;
 
 /**
- *  APZ INIT FUNCTIONS
- */
+*  APZ INIT FUNCTIONS
+*/
 
-libapac_err apz_init_ui64(apz_t *result, size_t init_size_limbs, uint64_t value); // for unsigned 64 bit int
+/// @brief initialize a big integer with positive 64 bit value in Least significant limb
+/// @note  the value result->is_negative is set to APZ_ZPOS    
+libapac_err apz_init_pos64(apz_t *result, size_t init_size_limbs, uint64_t value);
 
-libapac_err apz_init_si64(apz_t *result, size_t init_size_limbs, int64_t value); // for signed 64 bit int
+/// @brief initialize a big integer with negative 64 bit value in Least significant limb
+/// @note  the value result->is_negative is set to APZ_NEG  
+libapac_err apz_init_neg64(apz_t *result, size_t init_size_limbs, uint64_t value);
 
 libapac_err apz_grow(apz_t *result, size_t new_size_limbs);
 
@@ -157,7 +161,7 @@ libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2);
 
 /// @note result = op1 + value
 /// @note result sign set according to values of op1 and value
-libapac_err apz_hl_add_ui(apz_t *result, const apz_t *op1, const uint64_t value); // result = op1 + value
+libapac_err apz_hl_add_ui(apz_t *result, const apz_t *op1, uint64_t value); // result = op1 + value
 
 /// @note result = op1 - op2
 /// @note result sign set according to values of op1 and op2
@@ -165,7 +169,7 @@ libapac_err apz_hl_sub(apz_t *result, const apz_t *op1, const apz_t *op2); // re
 
 /// @note result = op1 - value
 /// @note result sign set according to values of op1 and value
-libapac_err apz_hl_sub_ui(apz_t *result, const apz_t *op1, const uint64_t value); // result = op1 - value
+libapac_err apz_hl_sub_ui(apz_t *result, const apz_t *op1, uint64_t value); // result = op1 - value
 
 /// @note result = value - op1
 /// @note result sign set according to values of op1 and value
@@ -237,7 +241,7 @@ void set_memory_func_ptrs(
     APZ INIT FUNCTION DEFINITIONS
 */
 
-libapac_err apz_init_ui64(apz_t *result, size_t init_size, uint64_t init_value)
+libapac_err apz_init_pos64(apz_t *result, size_t init_size, uint64_t init_value)
 {
     ASSERT(result && init_size && ((init_size >> 3) < ULLONG_MAX));
 
@@ -261,7 +265,7 @@ libapac_err apz_init_ui64(apz_t *result, size_t init_size, uint64_t init_value)
     return LIBAPAC_OKAY;
 }
 
-libapac_err apz_init_si64(apz_t *result, size_t init_size, int64_t init_value)
+libapac_err apz_init_neg64(apz_t *result, size_t init_size, uint64_t init_value)
 {
     ASSERT(result && init_size && ((init_size >> 3) < ULLONG_MAX));
 
@@ -278,11 +282,9 @@ libapac_err apz_init_si64(apz_t *result, size_t init_size, int64_t init_value)
     result->seg_alloc = init_size;
     result->num_array = (apz64 *)memset(result->num_array, 0, result->seg_alloc * sizeof(apz64));
 
-    apz64 abs_value = (init_value ^ (init_value >> 63)) - (init_value >> 63); // calculate absolute value of init_value
-
-    result->num_array[0] = abs_value;
+    result->num_array[0] = init_value;
     result->seg_in_use = 1;
-    result->is_negative = (init_value) >> 63;
+    result->is_negative = APZ_NEG;
 
     return LIBAPAC_OKAY;
 }
@@ -422,11 +424,67 @@ libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2)
         return ret_val;
     }
 
-    if (op_to_do) // do absolute addition
+    if (op_to_do) // do absolute subtraction
     {
         apz_abs_sub_x64(result, max_elem, min_elem);
     }
-    else // do absolute subtraction
+    else // do absolute addition
+    {
+        apz_abs_add_x64(result, max_elem, min_elem);
+    }
+
+    result->is_negative = max_elem->is_negative;
+    return ret_val;
+}
+
+libapac_err apz_hl_add_ui(apz_t *result, const apz_t *op1, uint64_t value)
+{
+}
+
+libapac_err apz_hl_sub(apz_t *result, const apz_t *op1, const apz_t *op2)
+{
+    ASSERT(result && op1 && op2);
+    ASSERT(result->num_array && op1->num_array && op2->num_array);
+
+    const apz_t *max_elem, *min_elem;
+    uint8_t op_to_do = 1; // abs subtraction by default
+    libapac_err ret_val = LIBAPAC_OKAY;
+
+    if (apz_abs_greater(op1, op2))
+    {
+        max_elem = op1;
+        min_elem = op2;
+    }
+    else
+    {
+        max_elem = op2;
+        min_elem = op1;
+    }
+
+    if (max_elem->is_negative != min_elem->is_negative)
+    {
+        op_to_do = 0; // to do abs addition
+    }
+
+    if (!op_to_do && result->seg_alloc < (max_elem->seg_in_use + 1)) // if operation is addition
+    {
+        ret_val = apz_grow(result, max_elem->seg_in_use + 1);
+    }
+    else if (op_to_do && result->seg_alloc < max_elem->seg_in_use) // if operation is subtraction
+    {
+        ret_val = apz_grow(result, max_elem->seg_in_use);
+    }
+
+    if (ret_val == LIBAPAC_OOM) // check if out of memory error has happened and handle
+    {
+        return ret_val;
+    }
+
+    if (op_to_do) // do absolute subtraction
+    {
+        apz_abs_sub_x64(result, max_elem, min_elem);
+    }
+    else // do absolute addition
     {
         apz_abs_add_x64(result, max_elem, min_elem);
     }
