@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#ifndef REPORT_ERR_FPRINTF
+#ifndef REPORT_ERR
 #include <stdio.h>
 #define REPORT_ERR(stream, fmt, ...) fprintf(stream, fmt, ##__VA_ARGS__)
 
@@ -169,11 +169,11 @@ libapac_err apz_hl_sub(apz_t *result, const apz_t *op1, const apz_t *op2); // re
 
 /// @note result = op1 - value
 /// @note result sign set according to values of op1 and value
-libapac_err apz_hl_sub_ui(apz_t *result, const apz_t *op1, uint64_t value); // result = op1 - value
+libapac_err apz_hl_sub_pos64(apz_t *result, const apz_t *op1, uint64_t value); // result = op1 - value
 
 /// @note result = value - op1
 /// @note result sign set according to values of op1 and value
-libapac_err apz_hl_ui_sub(apz_t *result, const uint64_t value, const apz_t *op1); // result = value - op1
+libapac_err apz_hl_pos64_sub(apz_t *result, const uint64_t value, const apz_t *op1); // result = value - op1
 
 libapac_err apz_hl_mul(apz_t *result, const apz_t *op1, const apz_t *op2); // result = op1 * op2
 
@@ -211,8 +211,6 @@ void apz_abs_sub_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem
 void apz_mul_karatsuba_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem);
 
 #endif
-
-#define LIBAPAC_IMPLEMENTATION
 
 #ifdef LIBAPAC_IMPLEMENTATION
 
