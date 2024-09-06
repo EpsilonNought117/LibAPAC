@@ -1,1 +1,1 @@
-#LibAPAC - Library for Arbitrary Precision Arithmetic in C
+# LibAPAC - Library for Arbitrary Precision Arithmetic in C
