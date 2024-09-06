@@ -108,15 +108,15 @@ typedef struct apz_t
 } apz_t;
 
 /**
-*  APZ INIT FUNCTIONS
-*/
+ *  APZ INIT FUNCTIONS
+ */
 
 /// @brief initialize a big integer with positive 64 bit value in Least significant limb
-/// @note  the value result->is_negative is set to APZ_ZPOS    
+/// @note  the value result->is_negative is set to APZ_ZPOS
 libapac_err apz_init_pos64(apz_t *result, size_t init_size_limbs, uint64_t value);
 
 /// @brief initialize a big integer with negative 64 bit value in Least significant limb
-/// @note  the value result->is_negative is set to APZ_NEG  
+/// @note  the value result->is_negative is set to APZ_NEG
 libapac_err apz_init_neg64(apz_t *result, size_t init_size_limbs, uint64_t value);
 
 libapac_err apz_grow(apz_t *result, size_t new_size_limbs);
@@ -177,9 +177,9 @@ libapac_err apz_hl_ui_sub(apz_t *result, const uint64_t value, const apz_t *op1)
 
 libapac_err apz_hl_mul(apz_t *result, const apz_t *op1, const apz_t *op2); // result = op1 * op2
 
-libapac_err apz_hl_mul_ui(apz_t *result, const apz_t *op1, const uint64_t value); // result = op1 * value
+libapac_err apz_hl_mul_pos64(apz_t *result, const apz_t *op1, const uint64_t value); // result = op1 * value
 
-libapac_err apz_hl_mul_si(apz_t *result, const apz_t *op1, const int64_t value); // result = op1 * value (value is signed)
+libapac_err apz_hl_mul_neg64(apz_t *result, const apz_t *op1, const uint64_t value); // result = op1 * value 
 
 /**
  *  APZ LOW LEVEL FUNCTIONS SPECIFIC TO x64 ARCH
@@ -201,6 +201,14 @@ void apz_abs_add_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem
  * @note caller has to make sure abs(max_elem) > abs(min_elem), otherwise behaviour is undefined
  */
 void apz_abs_sub_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem);
+
+/**
+ * @result result = abs(max_elem) * abs
+ * 
+ * @note result->is_negative set to APZ_ZPOS by default
+ * @note caller has to make sure limb counter of result is at least max_elem->seg_in_use + min_elem->seg_in_use
+ */
+void apz_mul_karatsuba_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem);
 
 #endif
 
@@ -439,6 +447,7 @@ libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2)
 
 libapac_err apz_hl_add_ui(apz_t *result, const apz_t *op1, uint64_t value)
 {
+    return LIBAPAC_OKAY;
 }
 
 libapac_err apz_hl_sub(apz_t *result, const apz_t *op1, const apz_t *op2)
@@ -504,7 +513,7 @@ apz64 inline apz_limit_add(apz_t *op1, apz_t *op2)
 
 apz64 inline apz_limit_mul(apz_t *op1, apz_t *op2)
 {
-    return (op1->seg_in_use + op2->seg_in_use + 1);
+    return (op1->seg_in_use + op2->seg_in_use);
 }
 
 apz64 inline apz_limit_sqr(apz_t *op1)
@@ -539,7 +548,7 @@ void apz_abs_add_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem
     {
         carry = _addcarry_u64(carry, temp_max[counter], temp_min[counter], temp_res + counter);
         counter++;
-
+        
         /*
             TEST ASM WITH ADCX AND ADOX ALONG WITH LOOP UNROLLING
         */
@@ -606,6 +615,11 @@ void apz_abs_sub_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem
     result->seg_in_use = max_elem->seg_in_use;
     result->is_negative = APZ_ZPOS;
     return;
+}
+
+void apz_mul_karatsuba_x64(apz_t* result, const apz_t* op1, const apz_t* op2)
+{
+    
 }
 
 #endif
