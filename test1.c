@@ -1,5 +1,5 @@
 #define LIBAPAC_IMPLEMENTATION
-#include "../libapac/libapac.h"
+#include "libapac.h"
 
 int main(void)
 {
