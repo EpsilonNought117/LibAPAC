@@ -179,36 +179,25 @@ libapac_err apz_hl_mul(apz_t *result, const apz_t *op1, const apz_t *op2); // re
 
 libapac_err apz_hl_mul_pos64(apz_t *result, const apz_t *op1, const uint64_t value); // result = op1 * value
 
-libapac_err apz_hl_mul_neg64(apz_t *result, const apz_t *op1, const uint64_t value); // result = op1 * value 
+libapac_err apz_hl_mul_neg64(apz_t *result, const apz_t *op1, const uint64_t value); // result = op1 * value
 
 /**
- *  APZ LOW LEVEL FUNCTIONS SPECIFIC TO x64 ARCH
+ *   APZ LOW LEVEL FUNCTIONS SPECIFIC TO x64 ARCH
  */
 
 /**
- * Does not perform any memory allocation on result
- * @result result = abs(max_elem) + abs(min_elem)
+ * @result result_arr[limb] = abs(op1_arr[limb]) + abs(op2_arr[limb])
  *
- * @note result->is_negative set to APZ_ZPOS by default
- * @note caller has to make sure limb count of result is at least one more than maximum
+ * @note Adds seg_count number of limbs of op1_arr to op2_arr and returns a carry if produced (1) otherwise (0)
  */
-void apz_abs_add_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem);
+uint8_t apz64_abs_add_x64(apz64 *result_arr, const apz64 *op1_arr, const apz64 *op2_arr, apz64 seg_count);
 
 /**
- * @result result = abs(max_elem) - abs(max_elem)
+ * @result result_arr[limb] = abs(op1_arr[limb]) - abs(op2_arr[limb])
  *
- * @note result->is_negative set to APZ_ZPOS by default
- * @note caller has to make sure abs(max_elem) > abs(min_elem), otherwise behaviour is undefined
+ * @note subtracts seg_count number of limbs of op1_arr from op2_arr and returns a borrow if produced (1) otherwise (0)
  */
-void apz_abs_sub_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem);
-
-/**
- * @result result = abs(max_elem) * abs
- * 
- * @note result->is_negative set to APZ_ZPOS by default
- * @note caller has to make sure limb counter of result is at least max_elem->seg_in_use + min_elem->seg_in_use
- */
-void apz_mul_karatsuba_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem);
+uint8_t apz64_abs_sub_x64(apz64 *result_arr, const apz64 *op1_arr, const apz64 *op2_arr, apz64 seg_count);
 
 #endif
 
@@ -387,7 +376,7 @@ uint8_t apz_abs_greater(const apz_t *op1, const apz_t *op2)
             }
         }
 
-        return (op1->num_array[counter] > op2->num_array[counter] ? 1 : 0);
+        return (op1->num_array[counter] >= op2->num_array[counter] ? 1 : 0);
     }
 }
 
@@ -397,6 +386,7 @@ libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2)
     ASSERT(result->num_array && op1->num_array && op2->num_array);
 
     const apz_t *max_elem, *min_elem;
+    uint8_t carry = 0;
     uint8_t op_to_do = 0; // abs addition by default
     libapac_err ret_val = LIBAPAC_OKAY;
 
@@ -416,11 +406,11 @@ libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2)
         op_to_do = 1; // to do abs subtraction
     }
 
-    if (!op_to_do && result->seg_alloc < (max_elem->seg_in_use + 1)) // if operation is addition
+    if (!op_to_do && result->seg_alloc < (max_elem->seg_in_use + 1)) // if absolute operation is addition
     {
         ret_val = apz_grow(result, max_elem->seg_in_use + 1);
     }
-    else if (op_to_do && result->seg_alloc < max_elem->seg_in_use) // if operation is subtraction
+    else if (op_to_do && result->seg_alloc < max_elem->seg_in_use) // if absolute operation is subtraction
     {
         ret_val = apz_grow(result, max_elem->seg_in_use);
     }
@@ -430,16 +420,47 @@ libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2)
         return ret_val;
     }
 
-    if (op_to_do) // do absolute subtraction
+    uint64_t counter = min_elem->seg_in_use;
+
+    if (!op_to_do)
     {
-        apz_abs_sub_x64(result, max_elem, min_elem);
+        carry = apz64_abs_add_x64(result->num_array, max_elem->num_array, min_elem->num_array, min_elem->seg_in_use);
+
+        if (max_elem->seg_in_use > min_elem->seg_in_use)
+        {
+            while (counter < max_elem->seg_in_use)
+            {
+                carry = _addcarry_u64(carry, max_elem->num_array[counter], 0, result->num_array + counter);
+                counter++;
+            }
+        }
     }
-    else // do absolute addition
+    else
     {
-        apz_abs_add_x64(result, max_elem, min_elem);
+        // carry variable functions as borrow
+
+        carry = apz64_abs_sub_x64(result->num_array, max_elem->num_array, min_elem->num_array, min_elem->seg_in_use);
+
+        if (max_elem->seg_in_use > min_elem->seg_in_use)
+        {
+            while (counter < max_elem->seg_in_use)
+            {
+                carry = _subborrow_u64(carry, max_elem->num_array[counter], 0, result->num_array + counter);
+                counter++;
+            }
+        }
+
+        // carry (AKA borrow) is never 1 after this loop (just how subtraction works)
+    }
+
+    if (carry)
+    {
+        result->num_array[counter] += carry;
     }
 
     result->is_negative = max_elem->is_negative;
+    result->seg_in_use = max_elem->seg_in_use + (carry & 1);
+
     return ret_val;
 }
 
@@ -454,6 +475,7 @@ libapac_err apz_hl_sub(apz_t *result, const apz_t *op1, const apz_t *op2)
     ASSERT(result->num_array && op1->num_array && op2->num_array);
 
     const apz_t *max_elem, *min_elem;
+    uint8_t borrow = 0;
     uint8_t op_to_do = 1; // abs subtraction by default
     libapac_err ret_val = LIBAPAC_OKAY;
 
@@ -487,15 +509,41 @@ libapac_err apz_hl_sub(apz_t *result, const apz_t *op1, const apz_t *op2)
         return ret_val;
     }
 
+    uint64_t counter = min_elem->seg_in_use;
+
     if (op_to_do) // do absolute subtraction
     {
-        apz_abs_sub_x64(result, max_elem, min_elem);
+        borrow = apz64_abs_sub_x64(result->num_array, max_elem->num_array, min_elem->num_array, min_elem->seg_in_use);
+
+        if (max_elem->seg_in_use > min_elem->seg_in_use)
+        {
+            while (counter < max_elem->seg_in_use)
+            {
+                borrow = _subborrow_u64(borrow, max_elem->num_array[counter], 0, result->num_array + counter);
+                counter++;
+            }
+        }
     }
     else // do absolute addition
     {
-        apz_abs_add_x64(result, max_elem, min_elem);
+        borrow = apz64_abs_add_x64(result->num_array, max_elem->num_array, min_elem->num_array, min_elem->seg_in_use);
+
+        if (max_elem->seg_in_use > min_elem->seg_in_use)
+        {
+            while (counter < max_elem->seg_in_use)
+            {
+                borrow = _addcarry_u64(borrow, max_elem->num_array[counter], 0, result->num_array + counter);
+                counter++;
+            }
+        }
     }
 
+    if (borrow)
+    {
+        result->num_array[counter] += borrow;
+    }
+
+    result->seg_in_use = max_elem->seg_in_use;
     result->is_negative = max_elem->is_negative;
     return ret_val;
 }
@@ -528,96 +576,36 @@ apz64 inline apz_limit_exp(apz_t *op1, apz_t *op2)
     APZ LOW LEVEL FUNCTIONS (x64 ARCH) IMPLEMENTATION
 */
 
-void apz_abs_add_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem)
+uint8_t apz64_abs_add_x64(apz64 *result_arr, const apz64 *op1_arr, const apz64 *op2_arr, apz64 seg_count)
 {
-    // assumption made by function
-
-    ASSERT(max_elem->seg_in_use >= min_elem->seg_in_use);
+    ASSERT(result_arr && op1_arr && op2_arr && seg_count);
 
     uint64_t counter = 0; // counter to keep track of number of segments processed
+    uint8_t carry = 0;    // carry variable for carry propagation
 
-    uint8_t carry = 0; // carry variable for carry propagation
-
-    apz64 *temp_res = result->num_array, *temp_max = max_elem->num_array, *temp_min = min_elem->num_array;
-
-    // process min->seg_in_use - 1 limbs
-
-    while (counter < min_elem->seg_in_use)
+    while (counter < seg_count)
     {
-        carry = _addcarry_u64(carry, temp_max[counter], temp_min[counter], temp_res + counter);
+        carry = _addcarry_u64(carry, op1_arr[counter], op2_arr[counter], result_arr + counter);
         counter++;
-        
-        /*
-            TEST ASM WITH ADCX AND ADOX ALONG WITH LOOP UNROLLING
-        */
     }
 
-    // process remaining limbs of max along with carry
-
-    while (counter < max_elem->seg_in_use)
-    {
-        carry = _addcarry_u64(carry, temp_max[counter], 0, temp_res + counter);
-        counter++;
-
-        /*
-            TEST ASM WITH ADCX AND ADOX ALONG WITH LOOP UNROLLING, MAYBE LOOP UNROLLING WILL SUFFICE
-        */
-    }
-
-    // check if carry is still left, if so then add it to final limb
-
-    if (carry)
-    {
-        temp_res[counter] += carry;
-    }
-
-    result->seg_in_use = max_elem->seg_in_use + (carry & 1);
-    result->is_negative = APZ_ZPOS;
-
-    /* (carry & 1) ensures limb count is increased if carry occured on last limb */
-
-    return;
+    return carry;
 }
 
-void apz_abs_sub_x64(apz_t *result, const apz_t *max_elem, const apz_t *min_elem)
+uint8_t apz64_abs_sub_x64(apz64 *result_arr, const apz64 *op1_arr, const apz64 *op2_arr, apz64 seg_count)
 {
-    /*
-        NO CHECKS ARE PERFORMED HERE WHETHER abs(max_elem) > abs(min_elem)
-        NEEDS TO BE CHECKED BY CALLER OR USE HIGHER LEVEL FUNCTIONS
-    */
+    ASSERT(result_arr && op1_arr && op2_arr && seg_count);
 
     uint64_t counter = 0; // counter to keep track of number of segments processed
+    uint8_t borrow = 0;   // borrow variable for borrow propagation
 
-    uint8_t borrow = 0; // borrow variable for borrow propagation
-
-    apz64 *temp_res = result->num_array, *temp_max = max_elem->num_array, *temp_min = min_elem->num_array;
-
-    // process min->seg_in_use - 1 limbs
-
-    while (counter < min_elem->seg_in_use)
+    while (counter < seg_count)
     {
-        borrow = _subborrow_u64(borrow, temp_max[counter], temp_min[counter], temp_res + counter); // possibly loop unroll
+        borrow = _subborrow_u64(borrow, op1_arr[counter], op2_arr[counter], result_arr + counter);
         counter++;
     }
 
-    // process remaining limbs
-
-    while (counter < max_elem->seg_in_use)
-    {
-        borrow = _subborrow_u64(borrow, temp_max[counter], 0, temp_res + counter); // can try loop unrolling
-        counter++;
-    }
-
-    // change size to max->seg_in_use
-
-    result->seg_in_use = max_elem->seg_in_use;
-    result->is_negative = APZ_ZPOS;
-    return;
-}
-
-void apz_mul_karatsuba_x64(apz_t* result, const apz_t* op1, const apz_t* op2)
-{
-    
+    return borrow;
 }
 
 #endif

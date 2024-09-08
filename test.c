@@ -7,16 +7,18 @@ int main(void)
 
     apz_t a, b, c;
 
-    apz_init_pos64(&a, 4, 10);
-    apz_init_pos64(&b, 4, 10);
+    apz_init_pos64(&a, 3, ULLONG_MAX);
+    apz_init_neg64(&b, 3, ULLONG_MAX);
     apz_init_pos64(&c, 4, 0);
 
     apz_hl_add(&c, &a, &b);
 
-    for (uint64_t i = 0; i < 4; i++)
+    for (int i = 0; i < 4; i++)
     {
         printf("%llu\n", c.num_array[i]);
     }
+
+    printf("%llu\n", c.is_negative);
 
     return 0;
 }
