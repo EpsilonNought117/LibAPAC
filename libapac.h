@@ -66,44 +66,31 @@ void set_memory_func_ptrs(void *(*func_ptr1)(size_t init_size), void *(*func_ptr
     ARBITRARY PRECISION INTEGER DEFINITION
 */
 
-typedef uint64_t apz64;
+typedef uint64_t u64;
 
 #define APZ_ZPOS 0
-#define APZ_NEG 1
+#define APZ_NEG  1
 
 #define POW_10_TO_19 1000 * 1000 * 1000 * 1000 * 1000 * 1000 * 10 // 10^19
-
-typedef enum apz_base
-{
-
-    DECIMAL = 10, // computationally expensive to convert base
-
-    OCTAL = 8,   // easy to convert base
-    BASE32 = 32, // easy to convert base
-    BASE64 = 64, // easy to convert base
-
-    HEXADECIMAL = 16 // easiest base to convert
-
-} apz_base;
 
 typedef struct apz_t
 {
     /**
      *   stores the arbitrary precision integer in an array of 64 bit unsigned integers
      */
-    apz64 *num_array;
+    u64 *num_array;
 
     /**
      *   seg_alloc -> number of segments allocated currently for the arbitrary precision integer
      */
-    apz64 seg_alloc;
+    u64 seg_alloc;
 
     /**
      *   seg_in_use -> number of segments in use out of the total allocated
      */
-    apz64 seg_in_use;
+    u64 seg_in_use;
 
-    apz64 is_negative; // denotes whether the number is zero/positive or negative
+    u64 is_negative; // denotes whether the number is zero/positive or negative
 
 } apz_t;
 
@@ -131,21 +118,23 @@ libapac_err apz_free(apz_t *result); // makes result = NULL
 
 libapac_err apz_copy(apz_t *result, apz_t *op1);
 
-libapac_err apz_set_string(apz_t *result, uint8_t *string, uint64_t string_len);
+libapac_err apz_set_string_hex(apz_t *result, uint8_t *string, uint64_t string_len);
+
+libapac_err apz_set_string_dec(apz_t *result, uint8_t *string, uint64_t *string_len);
 
 /**
  *  APZ OPERATION LIMIT FUNCTIONS
  */
 
-apz64 inline apz_limit_add(apz_t *op1, apz_t *op2);
+u64 inline apz_limit_add(apz_t *op1, apz_t *op2);
 
-apz64 inline apz_limit_mul(apz_t *op1, apz_t *op2);
+u64 inline apz_limit_mul(apz_t *op1, apz_t *op2);
 
-apz64 inline apz_limit_sqr(apz_t *op1);
+u64 inline apz_limit_sqr(apz_t *op1);
 
-apz64 inline apz_limit_exp(apz_t *op1, apz_t *op2);
+u64 inline apz_limit_exp(apz_t *op1, apz_t *op2);
 
-apz64 inline apz_limit_mod_exp(apz_t *op1, apz_t *op2);
+u64 inline apz_limit_mod_exp(apz_t *op1, apz_t *op2);
 
 /**
  *  APZ HIGH LEVEL BASIC ARITHMETIC FUNCTIONS
@@ -190,14 +179,30 @@ libapac_err apz_hl_mul_neg64(apz_t *result, const apz_t *op1, const uint64_t val
  *
  * @note Adds seg_count number of limbs of op1_arr to op2_arr and returns a carry if produced (1) otherwise (0)
  */
-uint8_t apz64_abs_add_x64(apz64 *result_arr, const apz64 *op1_arr, const apz64 *op2_arr, apz64 seg_count);
+uint8_t apz_abs_add_x64(u64 *result_arr, const u64 *op1_arr, const u64 *op2_arr, u64 seg_count);
 
 /**
  * @result result_arr[limb] = abs(op1_arr[limb]) - abs(op2_arr[limb])
  *
  * @note subtracts seg_count number of limbs of op1_arr from op2_arr and returns a borrow if produced (1) otherwise (0)
  */
-uint8_t apz64_abs_sub_x64(apz64 *result_arr, const apz64 *op1_arr, const apz64 *op2_arr, apz64 seg_count);
+uint8_t apz_abs_sub_x64(u64 *result_arr, const u64 *op1_arr, const u64 *op2_arr, u64 seg_count);
+
+/**
+ * @result result = op1 * op2, each operand having seg_count limbs
+ *
+ * @note caller has to assure result arr has (seg_count * 2) limbs
+ * @warning result_arr should not overlap with either of the operand arrays
+ */
+inline void apz_mul_basecase_x64(u64 *result_arr, const u64 *arr1, const u64 *arr2, u64 arr1_size, u64 arr2_size);
+
+/**
+ * @result result = op1 * op2, each operand having seg_count limbs
+ *
+ * @note caller has to assure result arr has (seg_count * 2) limbs
+ * @warning result_arr should not overlap with either of the operand arrays
+ */
+void apz_mul_karatsuba_x64(u64 *result_arr, const u64 *op1_arr, const u64 *op2_arr, u64 seg_count);
 
 #endif
 
@@ -240,9 +245,9 @@ libapac_err apz_init_pos64(apz_t *result, size_t init_size, uint64_t init_value)
 {
     ASSERT(result && init_size && ((init_size >> 3) < ULLONG_MAX));
 
-    apz64 alloc_size = (apz64)init_size << 3;
+    u64 alloc_size = (u64)init_size << 3;
 
-    result->num_array = (apz64 *)malloc_ptr(alloc_size);
+    result->num_array = (u64 *)malloc_ptr(alloc_size);
 
     if (!result->num_array)
     {
@@ -251,7 +256,7 @@ libapac_err apz_init_pos64(apz_t *result, size_t init_size, uint64_t init_value)
     }
 
     result->seg_alloc = init_size;
-    result->num_array = (apz64 *)memset(result->num_array, 0, result->seg_alloc * sizeof(apz64));
+    result->num_array = (u64 *)memset(result->num_array, 0, result->seg_alloc * sizeof(u64));
 
     result->num_array[0] = init_value;
     result->seg_in_use = 1;
@@ -264,9 +269,9 @@ libapac_err apz_init_neg64(apz_t *result, size_t init_size, uint64_t init_value)
 {
     ASSERT(result && init_size && ((init_size >> 3) < ULLONG_MAX));
 
-    apz64 alloc_size = (apz64)init_size << 3;
+    u64 alloc_size = (u64)init_size << 3;
 
-    result->num_array = (apz64 *)malloc_ptr(alloc_size);
+    result->num_array = (u64 *)malloc_ptr(alloc_size);
 
     if (!result->num_array)
     {
@@ -275,7 +280,7 @@ libapac_err apz_init_neg64(apz_t *result, size_t init_size, uint64_t init_value)
     }
 
     result->seg_alloc = init_size;
-    result->num_array = (apz64 *)memset(result->num_array, 0, result->seg_alloc * sizeof(apz64));
+    result->num_array = (u64 *)memset(result->num_array, 0, result->seg_alloc * sizeof(u64));
 
     result->num_array[0] = init_value;
     result->seg_in_use = 1;
@@ -288,7 +293,7 @@ libapac_err apz_grow(apz_t *result, size_t new_size)
 {
     ASSERT(result && (new_size > result->seg_alloc) && ((new_size >> 3) < ULLONG_MAX));
 
-    apz64 *temp_mem = (apz64 *)realloc_ptr(result->num_array, new_size * sizeof(apz64));
+    u64 *temp_mem = (u64 *)realloc_ptr(result->num_array, new_size * sizeof(u64));
 
     if (!temp_mem)
     {
@@ -296,9 +301,9 @@ libapac_err apz_grow(apz_t *result, size_t new_size)
         return LIBAPAC_OOM;
     }
 
-    apz64 *extended_addr = temp_mem + result->seg_alloc * sizeof(apz64);
+    u64 *extended_addr = temp_mem + result->seg_alloc * sizeof(u64);
 
-    extended_addr = (apz64 *)memset(extended_addr, 0, new_size - result->seg_alloc);
+    extended_addr = (u64 *)memset(extended_addr, 0, new_size - result->seg_alloc);
 
     result->num_array = temp_mem;
     result->seg_alloc = new_size;
@@ -311,7 +316,7 @@ libapac_err apz_shrink_fit(apz_t *result)
 {
     ASSERT(result && result->num_array);
 
-    apz64 *temp_mem = (apz64 *)realloc_ptr(result->num_array, sizeof(apz64) * result->seg_in_use);
+    u64 *temp_mem = (u64 *)realloc_ptr(result->num_array, sizeof(u64) * result->seg_in_use);
 
     if (!temp_mem)
     {
@@ -424,7 +429,7 @@ libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2)
 
     if (!op_to_do)
     {
-        carry = apz64_abs_add_x64(result->num_array, max_elem->num_array, min_elem->num_array, min_elem->seg_in_use);
+        carry = apz_abs_add_x64(result->num_array, max_elem->num_array, min_elem->num_array, min_elem->seg_in_use);
 
         if (max_elem->seg_in_use > min_elem->seg_in_use)
         {
@@ -439,7 +444,7 @@ libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2)
     {
         // carry variable functions as borrow
 
-        carry = apz64_abs_sub_x64(result->num_array, max_elem->num_array, min_elem->num_array, min_elem->seg_in_use);
+        carry = apz_abs_sub_x64(result->num_array, max_elem->num_array, min_elem->num_array, min_elem->seg_in_use);
 
         if (max_elem->seg_in_use > min_elem->seg_in_use)
         {
@@ -513,7 +518,7 @@ libapac_err apz_hl_sub(apz_t *result, const apz_t *op1, const apz_t *op2)
 
     if (op_to_do) // do absolute subtraction
     {
-        borrow = apz64_abs_sub_x64(result->num_array, max_elem->num_array, min_elem->num_array, min_elem->seg_in_use);
+        borrow = apz_abs_sub_x64(result->num_array, max_elem->num_array, min_elem->num_array, min_elem->seg_in_use);
 
         if (max_elem->seg_in_use > min_elem->seg_in_use)
         {
@@ -526,7 +531,7 @@ libapac_err apz_hl_sub(apz_t *result, const apz_t *op1, const apz_t *op2)
     }
     else // do absolute addition
     {
-        borrow = apz64_abs_add_x64(result->num_array, max_elem->num_array, min_elem->num_array, min_elem->seg_in_use);
+        borrow = apz_abs_add_x64(result->num_array, max_elem->num_array, min_elem->num_array, min_elem->seg_in_use);
 
         if (max_elem->seg_in_use > min_elem->seg_in_use)
         {
@@ -552,22 +557,22 @@ libapac_err apz_hl_sub(apz_t *result, const apz_t *op1, const apz_t *op2)
     APZ OPERATION LIMIT FUNCTION DEFINITIONS
 */
 
-apz64 inline apz_limit_add(apz_t *op1, apz_t *op2)
+u64 inline apz_limit_add(apz_t *op1, apz_t *op2)
 {
     return (op1->seg_in_use > op2->seg_in_use ? op1->seg_in_use + 1 : op2->seg_in_use + 1);
 }
 
-apz64 inline apz_limit_mul(apz_t *op1, apz_t *op2)
+u64 inline apz_limit_mul(apz_t *op1, apz_t *op2)
 {
     return (op1->seg_in_use + op2->seg_in_use);
 }
 
-apz64 inline apz_limit_sqr(apz_t *op1)
+u64 inline apz_limit_sqr(apz_t *op1)
 {
     return (2 * op1->seg_in_use);
 }
 
-apz64 inline apz_limit_exp(apz_t *op1, apz_t *op2)
+u64 inline apz_limit_exp(apz_t *op1, apz_t *op2)
 {
     return (op1->seg_in_use * op2->seg_in_use);
 }
@@ -576,9 +581,9 @@ apz64 inline apz_limit_exp(apz_t *op1, apz_t *op2)
     APZ LOW LEVEL FUNCTIONS (x64 ARCH) IMPLEMENTATION
 */
 
-uint8_t apz64_abs_add_x64(apz64 *result_arr, const apz64 *op1_arr, const apz64 *op2_arr, apz64 seg_count)
+uint8_t apz_abs_add_x64(u64 *result_arr, const u64 *op1_arr, const u64 *op2_arr, u64 seg_count)
 {
-    ASSERT(result_arr && op1_arr && op2_arr && seg_count);
+    // call this function if the operands are same size in segments
 
     uint64_t counter = 0; // counter to keep track of number of segments processed
     uint8_t carry = 0;    // carry variable for carry propagation
@@ -592,9 +597,9 @@ uint8_t apz64_abs_add_x64(apz64 *result_arr, const apz64 *op1_arr, const apz64 *
     return carry;
 }
 
-uint8_t apz64_abs_sub_x64(apz64 *result_arr, const apz64 *op1_arr, const apz64 *op2_arr, apz64 seg_count)
+uint8_t apz_abs_sub_x64(u64 *result_arr, const u64 *op1_arr, const u64 *op2_arr, u64 seg_count)
 {
-    ASSERT(result_arr && op1_arr && op2_arr && seg_count);
+    // call this function if the operands are same size in segments
 
     uint64_t counter = 0; // counter to keep track of number of segments processed
     uint8_t borrow = 0;   // borrow variable for borrow propagation
@@ -606,6 +611,36 @@ uint8_t apz64_abs_sub_x64(apz64 *result_arr, const apz64 *op1_arr, const apz64 *
     }
 
     return borrow;
+}
+
+inline void apz_mul_basecase_x64(u64 *result_arr, const u64 *arr1, const u64 *arr2, u64 arr1_size, u64 arr2_size)
+{
+    for (u64 i = 0; i < arr1_size; i++)
+    {
+        u64 low64 = 0, high64 = 0, temp_reg = 0;
+        uint8_t aux_carry = 0;
+
+        for (u64 j = 0; j < arr2_size; j++)
+        {
+            temp_reg = high64;
+            low64 = _umul128(arr1[i], arr2[j], &high64);
+            aux_carry = _addcarry_u64(aux_carry, temp_reg + low64, result_arr[i + j], &result_arr[i + j]);
+        }
+
+        result_arr[i + arr2_size] += aux_carry + high64;
+    }
+
+    return;
+}
+
+void apz_mul_karatsuba_x64(u64 *result_arr, const u64 *op1_arr, const u64 *op2_arr, u64 seg_count)
+{
+    if (seg_count == 1)
+    {
+    }
+    else
+    {
+    }
 }
 
 #endif
