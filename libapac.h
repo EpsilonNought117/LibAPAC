@@ -69,7 +69,7 @@ void set_memory_func_ptrs(void *(*func_ptr1)(size_t init_size), void *(*func_ptr
 typedef uint64_t u64;
 
 #define APZ_ZPOS 0
-#define APZ_NEG  1
+#define APZ_NEG 1
 
 #define POW_10_TO_19 1000 * 1000 * 1000 * 1000 * 1000 * 1000 * 10 // 10^19
 
@@ -120,7 +120,7 @@ libapac_err apz_copy(apz_t *result, apz_t *op1);
 
 libapac_err apz_set_string_hex(apz_t *result, uint8_t *string, uint64_t string_len);
 
-libapac_err apz_set_string_dec(apz_t *result, uint8_t *string, uint64_t *string_len);
+libapac_err apz_set_string_dec(apz_t *result, uint8_t *string, uint64_t string_len);
 
 /**
  *  APZ OPERATION LIMIT FUNCTIONS
@@ -149,7 +149,7 @@ uint8_t apz_abs_greater(const apz_t *op1, const apz_t *op2);
 libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2);
 
 /// @note result = op1 + value
-/// @note result sign set according to values of op1 and value
+/// @note result sign set according to value and sign of op1
 libapac_err apz_hl_add_ui(apz_t *result, const apz_t *op1, uint64_t value); // result = op1 + value
 
 /// @note result = op1 - op2
@@ -422,6 +422,7 @@ libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2)
 
     if (ret_val == LIBAPAC_OOM) // check if out of memory error has happened and handle
     {
+        REPORT_ERR(stderr, "Out of memory in apz_hl_add!");
         return ret_val;
     }
 
@@ -471,7 +472,65 @@ libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2)
 
 libapac_err apz_hl_add_ui(apz_t *result, const apz_t *op1, uint64_t value)
 {
-    return LIBAPAC_OKAY;
+    ASSERT(result && op1 && value);
+    ASSERT(result->num_array && op1->num_array);
+
+    libapac_err ret_val = LIBAPAC_OKAY;
+
+    if (op1->is_negative == APZ_NEG && result->seg_alloc < op1->seg_in_use)
+    {
+        ret_val = apz_grow(result, op1->seg_in_use);
+    }
+    else if (op1->is_negative == APZ_ZPOS && result->seg_alloc < op1->seg_in_use + 1)
+    {
+        ret_val = apz_grow(result, op1->seg_in_use + 1);
+    }
+
+    if (ret_val == LIBAPAC_OOM)
+    {
+        REPORT_ERR(stderr, "Out of memory in apz_hl_add_ui!");
+        return ret_val;
+    }
+
+    uint8_t carry_or_borrow = 0;
+
+    if (op1->is_negative == APZ_NEG)
+    {
+        if (op1->seg_in_use == 1 && op1->num_array[0] < value)
+        {
+            result->num_array[0] = value - op1->num_array[0];
+            result->is_negative = APZ_ZPOS;
+            result->seg_in_use = 1;
+            return ret_val;
+        }
+        else
+        {
+            carry_or_borrow = _subborrow_u64(carry_or_borrow, op1->num_array[0], value, result->num_array);
+            carry_or_borrow = _subborrow_u64(carry_or_borrow, op1->num_array[1], 0, result->num_array + 1);
+        }
+
+        result->is_negative = APZ_NEG;
+        result->seg_in_use = op1->seg_in_use;
+        return ret_val;
+    }
+    else
+    {
+        carry_or_borrow = _addcarry_u64(carry_or_borrow, op1->num_array[0], value, result->num_array + 0);
+
+        for (uint64_t counter = 1; counter < op1->seg_in_use; counter++)
+        {
+            carry_or_borrow = _addcarry_u64(carry_or_borrow, op1->num_array[counter], 0, result->num_array + counter);
+        }
+    }
+
+    if (carry_or_borrow) // indicates carry here
+    {
+        result->num_array[op1->seg_in_use] = carry_or_borrow;
+    }
+
+    result->is_negative = APZ_ZPOS;
+    result->seg_in_use = op1->seg_in_use + (carry_or_borrow & 1);
+    return ret_val;
 }
 
 libapac_err apz_hl_sub(apz_t *result, const apz_t *op1, const apz_t *op2)
@@ -480,7 +539,7 @@ libapac_err apz_hl_sub(apz_t *result, const apz_t *op1, const apz_t *op2)
     ASSERT(result->num_array && op1->num_array && op2->num_array);
 
     const apz_t *max_elem, *min_elem;
-    uint8_t borrow = 0;
+    uint8_t borrow = 0;   // might function as carry depending on scenario
     uint8_t op_to_do = 1; // abs subtraction by default
     libapac_err ret_val = LIBAPAC_OKAY;
 
@@ -531,6 +590,8 @@ libapac_err apz_hl_sub(apz_t *result, const apz_t *op1, const apz_t *op2)
     }
     else // do absolute addition
     {
+        // borrow variable functions as carry
+
         borrow = apz_abs_add_x64(result->num_array, max_elem->num_array, min_elem->num_array, min_elem->seg_in_use);
 
         if (max_elem->seg_in_use > min_elem->seg_in_use)
@@ -635,12 +696,7 @@ inline void apz_mul_basecase_x64(u64 *result_arr, const u64 *arr1, const u64 *ar
 
 void apz_mul_karatsuba_x64(u64 *result_arr, const u64 *op1_arr, const u64 *op2_arr, u64 seg_count)
 {
-    if (seg_count == 1)
-    {
-    }
-    else
-    {
-    }
+    
 }
 
 #endif
