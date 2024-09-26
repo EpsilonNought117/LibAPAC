@@ -36,8 +36,6 @@
 */
 
 #include <intrin.h>
-#include <immintrin.h>
-#include <ammintrin.h>
 
 /*
     ERROR HANDLING
@@ -436,7 +434,7 @@ libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2)
         {
             while (counter < max_elem->seg_in_use)
             {
-                carry = _addcarry_u64(carry, max_elem->num_array[counter], 0, result->num_array + counter);
+                carry = _addcarry_u64(carry, max_elem->num_array[counter], 0, &result->num_array[counter]);
                 counter++;
             }
         }
@@ -451,7 +449,7 @@ libapac_err apz_hl_add(apz_t *result, const apz_t *op1, const apz_t *op2)
         {
             while (counter < max_elem->seg_in_use)
             {
-                carry = _subborrow_u64(carry, max_elem->num_array[counter], 0, result->num_array + counter);
+                carry = _subborrow_u64(carry, max_elem->num_array[counter], 0, &result->num_array[counter]);
                 counter++;
             }
         }
@@ -505,8 +503,8 @@ libapac_err apz_hl_add_ui(apz_t *result, const apz_t *op1, uint64_t value)
         }
         else
         {
-            carry_or_borrow = _subborrow_u64(carry_or_borrow, op1->num_array[0], value, result->num_array);
-            carry_or_borrow = _subborrow_u64(carry_or_borrow, op1->num_array[1], 0, result->num_array + 1);
+            carry_or_borrow = _subborrow_u64(carry_or_borrow, op1->num_array[0], value, &result->num_array[0]);
+            carry_or_borrow = _subborrow_u64(carry_or_borrow, op1->num_array[1], 0, &result->num_array[1]);
         }
 
         result->is_negative = APZ_NEG;
@@ -515,11 +513,11 @@ libapac_err apz_hl_add_ui(apz_t *result, const apz_t *op1, uint64_t value)
     }
     else
     {
-        carry_or_borrow = _addcarry_u64(carry_or_borrow, op1->num_array[0], value, result->num_array + 0);
+        carry_or_borrow = _addcarry_u64(carry_or_borrow, op1->num_array[0], value, &result->num_array[0]);
 
         for (uint64_t counter = 1; counter < op1->seg_in_use; counter++)
         {
-            carry_or_borrow = _addcarry_u64(carry_or_borrow, op1->num_array[counter], 0, result->num_array + counter);
+            carry_or_borrow = _addcarry_u64(carry_or_borrow, op1->num_array[counter], 0, &result->num_array[counter]);
         }
     }
 
@@ -583,7 +581,7 @@ libapac_err apz_hl_sub(apz_t *result, const apz_t *op1, const apz_t *op2)
         {
             while (counter < max_elem->seg_in_use)
             {
-                borrow = _subborrow_u64(borrow, max_elem->num_array[counter], 0, result->num_array + counter);
+                borrow = _subborrow_u64(borrow, max_elem->num_array[counter], 0, &result->num_array[counter]);
                 counter++;
             }
         }
@@ -598,7 +596,7 @@ libapac_err apz_hl_sub(apz_t *result, const apz_t *op1, const apz_t *op2)
         {
             while (counter < max_elem->seg_in_use)
             {
-                borrow = _addcarry_u64(borrow, max_elem->num_array[counter], 0, result->num_array + counter);
+                borrow = _addcarry_u64(borrow, max_elem->num_array[counter], 0, &result->num_array[counter]);
                 counter++;
             }
         }
@@ -651,7 +649,7 @@ uint8_t apz_abs_add_x64(u64 *result_arr, const u64 *op1_arr, const u64 *op2_arr,
 
     while (counter < seg_count)
     {
-        carry = _addcarry_u64(carry, op1_arr[counter], op2_arr[counter], result_arr + counter);
+        carry = _addcarry_u64(carry, op1_arr[counter], op2_arr[counter], &result_arr[counter]);
         counter++;
     }
 
@@ -667,7 +665,7 @@ uint8_t apz_abs_sub_x64(u64 *result_arr, const u64 *op1_arr, const u64 *op2_arr,
 
     while (counter < seg_count)
     {
-        borrow = _subborrow_u64(borrow, op1_arr[counter], op2_arr[counter], result_arr + counter);
+        borrow = _subborrow_u64(borrow, op1_arr[counter], op2_arr[counter], &result_arr[counter]);
         counter++;
     }
 
